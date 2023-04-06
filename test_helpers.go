@@ -5,16 +5,17 @@ import (
 	"testing"
 )
 
-func expectClosedChannel[T any](expect bool, stream <-chan T, t *testing.T) {
+func expectClosedChannel[T any](expect bool, stream <-chan T, t testing.TB) {
 	// read the stream first to remove race condition
 	for range stream {
 	}
+
 	if _, ok := <-stream; ok && expect {
 		t.Errorf("expected channel closure to be %v but it was %v", expect, ok)
 	}
 }
 
-func expectOrderedResultsList[W any](want []W, outStream <-chan W, t *testing.T) {
+func expectOrderedResultsList[W any](want []W, outStream <-chan W, t testing.TB) {
 	got := make([]W, len(want))
 	var idx int
 	for item := range outStream {
@@ -27,13 +28,13 @@ func expectOrderedResultsList[W any](want []W, outStream <-chan W, t *testing.T)
 	}
 }
 
-func expectStreamLengthToBe[T any](expect int, stream <-chan T, t *testing.T) {
+func expectStreamLengthToBe[T any](expect int, stream <-chan T, t testing.TB) {
 	if cnt := lenStream(stream); cnt != expect {
 		t.Errorf("expected stream length to be %d but it was %d", expect, cnt)
 	}
 }
 
-func expectStreamLengthToBeLessThan[T any](max int, stream <-chan T, t *testing.T) {
+func expectStreamLengthToBeLessThan[T any](max int, stream <-chan T, t testing.TB) {
 	if cnt := lenStream(stream); cnt > max {
 		t.Errorf("expected stream length to be less than %d but got %d\n", max, cnt)
 	}
