@@ -5,6 +5,52 @@ import (
 	"testing"
 )
 
+func TestFanOut(t *testing.T) {
+	var (
+		pipeFunc WorkerFunc[string, string] = func(ctx context.Context, item string) string { return item }
+		testFunc WorkerFunc[[2]int, int]    = func(ctx context.Context, in [2]int) int { return in[0] + in[1] }
+	)
+
+	t.Run("when we pass a nil value instean of a stream, we should receive a panic", func(t *testing.T) {
+		defer func() {
+			if perr := recover(); perr == nil {
+				t.Errorf("expected FanOut to panic but got %v", perr)
+			}
+		}()
+		_ = FanOut(context.Background(), nil, 1, pipeFunc)
+	})
+
+	t.Run("when we request a concurrent processes, we should receive a closed stream containing one channel", func(t *testing.T) {
+		ctx := context.Background()
+		chanStream := FanOut(ctx, GenerateFromSlice(ctx, []string{"hello"}), 1, pipeFunc)
+		expectStreamLengthToBe(1, chanStream, t)
+		expectClosedChannel(true, chanStream, t)
+		for chn := range chanStream {
+			expectClosedChannel(true, chn, t)
+		}
+	})
+
+	t.Run("when we request multiple concurrent processes, we should receive a closed stream containing multiple closed streams", func(t *testing.T) {
+		ctx := context.Background()
+		chanStream := FanOut(ctx, GenerateFromSlice(ctx, []string{"hello", "and", "welcome", "to", "testing"}), 4, pipeFunc)
+		expectStreamLengthToBe(4, chanStream, t)
+		expectClosedChannel(true, chanStream, t)
+		for chn := range chanStream {
+			expectClosedChannel(true, chn, t)
+		}
+	})
+
+	t.Run("when we provide a workerFunc to a single stream, we expect to receive the correctly processed data back", func(t *testing.T) {
+		ctx := context.Background()
+		chanStream := FanOut(ctx, GenerateFromSlice(ctx, [][2]int{{1, 2}, {3, 4}}), 1, testFunc)
+		expectClosedChannel(true, chanStream, t)
+		for chn := range chanStream {
+			expectOrderedResultsList([]int{3, 7}, chn, t)
+			expectClosedChannel(true, chn, t)
+		}
+	})
+}
+
 func TestActionFactory(t *testing.T) {
 	type (
 		input struct {
@@ -58,4 +104,13 @@ func TestActionFactory(t *testing.T) {
 		expectOrderedResultsList([]output{}, outStream, t)
 		expectClosedChannel(true, outStream, t)
 	})
+}
+
+func Benchmark(b *testing.B) {
+	var pipeFunc WorkerFunc[string, string] = func(ctx context.Context, item string) string { return item }
+	ctx := context.Background()
+
+	for i := 0; i < b.N; i++ {
+		_ = WorkerThread(ctx, GenerateFromSlice(ctx, []string{"hello"}), pipeFunc)
+	}
 }
