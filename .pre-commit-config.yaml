@@ -16,7 +16,5 @@ repos:
       - id: go-vet-mod
       - id: go-sec-mod
       - id: go-staticcheck-mod
-      - id: go-structslop-mod
-        args: [ -fix ]
       - id: golangci-lint-mod
         args: [ --fix ]

@@ -24,3 +24,24 @@ func generate[T any](ctx context.Context, list []T, outStream chan<- T) {
 		}
 	}
 }
+
+func GenerateHashFromStream[K comparable, V any](ctx context.Context, inStream <-chan struct {
+	Key K
+	Val V
+}) map[K]V {
+	if inStream == nil {
+		panic("GenerateHashFromStream: inStream has nil value")
+	}
+	out := make(map[K]V)
+loop:
+	for obj := range inStream {
+		select {
+		case <-ctx.Done():
+			break loop
+		default:
+			out[obj.Key] = obj.Val
+		}
+	}
+
+	return out
+}

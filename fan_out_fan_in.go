@@ -8,7 +8,12 @@ func FanOut[In, Out any](ctx context.Context, inStream <-chan In, maxProcs int, 
 	chanStream := make(chan (<-chan Out))
 	if inStream == nil {
 		close(chanStream)
-		panic("WorkerThread: provided stream has nil value")
+		panic("FanOut: inStream arg has nil value")
+	}
+
+	if workerFunc == nil {
+		close(chanStream)
+		panic("FanOut: workerFunc arg has nil value")
 	}
 
 	go func() {
@@ -52,4 +57,37 @@ func WorkerThread[In, Out any](ctx context.Context, inStream <-chan In, workerFu
 	}()
 
 	return resStream
+}
+
+func FanIn[T any](ctx context.Context, chanStream <-chan (<-chan T)) chan T {
+	outStream := make(chan T)
+	if chanStream == nil {
+		close(outStream)
+		panic("FanIn: chanStream has nil value")
+	}
+
+	go func() {
+		defer close(outStream)
+		for {
+			var possStream <-chan T
+			select {
+			case chn, ok := <-chanStream:
+				if !ok {
+					return
+				}
+				possStream = chn
+			case <-ctx.Done():
+				return
+			}
+			for t := range OrDone(ctx, possStream) {
+				select {
+				case outStream <- t:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return outStream
 }

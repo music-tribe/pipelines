@@ -20,6 +20,15 @@ func TestFanOut(t *testing.T) {
 		_ = FanOut(context.Background(), nil, 1, pipeFunc)
 	})
 
+	t.Run("when we pass a nil value instean of a workerFunc, we should receive a panic", func(t *testing.T) {
+		defer func() {
+			if perr := recover(); perr == nil {
+				t.Errorf("expected FanOut to panic but got %v", perr)
+			}
+		}()
+		_ = FanOut[string, string](context.Background(), nil, 1, nil)
+	})
+
 	t.Run("when we request a concurrent processes, we should receive a closed stream containing one channel", func(t *testing.T) {
 		ctx := context.Background()
 		chanStream := FanOut(ctx, GenerateFromSlice(ctx, []string{"hello"}), 1, pipeFunc)
@@ -113,4 +122,84 @@ func Benchmark(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = WorkerThread(ctx, GenerateFromSlice(ctx, []string{"hello"}), pipeFunc)
 	}
+}
+
+func TestFanIn(t *testing.T) {
+	var (
+		pipeFunc WorkerFunc[string, string] = func(ctx context.Context, item string) string { return item }
+	)
+
+	t.Run("when the chanStream has a nil value, we should force a panic", func(t *testing.T) {
+		defer func() {
+			if perr := recover(); perr == nil {
+				t.Errorf("expected FanIn to panic but got %v", perr)
+			}
+		}()
+		_ = FanIn[string](context.Background(), nil)
+	})
+
+	t.Run("when we provide a single channel stream, we expect a closed channel in return", func(t *testing.T) {
+		ctx := context.Background()
+		chans := FanOut(ctx, GenerateFromSlice(ctx, []string{"thing"}), 1, pipeFunc)
+
+		outStream := FanIn(context.Background(), chans)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when we provide a multi channel stream, we expect a closed channel in return", func(t *testing.T) {
+		ctx := context.Background()
+		chans := FanOut(ctx, GenerateFromSlice(ctx, []string{"thing"}), 5, pipeFunc)
+
+		outStream := FanIn(context.Background(), chans)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when a single item is passed into the streams, we should expect a single item back", func(t *testing.T) {
+		ctx := context.Background()
+		list := []string{"single"}
+		chans := FanOut(ctx, GenerateFromSlice(ctx, list), 5, pipeFunc)
+
+		outStream := FanIn(context.Background(), chans)
+		expectStreamLengthToBe(len(list), outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when a single item is passed into the streams, we should expect a single item back", func(t *testing.T) {
+		ctx := context.Background()
+		list := []string{"single"}
+		chans := FanOut(ctx, GenerateFromSlice(ctx, list), 5, pipeFunc)
+
+		outStream := FanIn(context.Background(), chans)
+		expectStreamLengthToBe(len(list), outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when multiple items are passed into the streams, we should expect the same amount back", func(t *testing.T) {
+		ctx := context.Background()
+		list := []string{"this", "is", "a", "list", "of", "multiple", "items"}
+		chans := FanOut(ctx, GenerateFromSlice(ctx, list), 5, pipeFunc)
+
+		outStream := FanIn(context.Background(), chans)
+		expectStreamLengthToBe(len(list), outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when multiple items are passed into the streams, we should check that the correct items are returned", func(t *testing.T) {
+		ctx := context.Background()
+		list := []string{"this", "is", "a", "list", "of", "multiple", "items"}
+		chans := FanOut(ctx, GenerateFromSlice(ctx, list), 5, pipeFunc)
+
+		outStream := FanIn(context.Background(), chans)
+		expectStreamLengthToBe(len(list), outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	// t.Run("when we provide a stream containing a single stream, we should return that single closed stream", func(t *testing.T) {
+	// 	ctx := context.Background()
+	// 	list := []string{"hi", "there"}
+	// 	chanStream := FanOut(ctx, GenerateFromSlice(ctx, list), 1, pipeFunc)
+	// 	outStream := FanIn(ctx, chanStream)
+	// 	expectStreamLengthToBe(len(list), outStream, t)
+	// 	expectClosedChannel(true, outStream, t)
+	// })
 }

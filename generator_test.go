@@ -2,6 +2,7 @@ package pipelines
 
 import (
 	"context"
+	"reflect"
 	"testing"
 )
 
@@ -41,5 +42,32 @@ func TestGenerateFromSlice(t *testing.T) {
 		ttStream := GenerateFromSlice(ctx, list)
 		expectStreamLengthToBeLessThan(len(list), ttStream, t)
 		expectClosedChannel(true, ttStream, t)
+	})
+}
+
+func TestGenerateHashFromStream(t *testing.T) {
+	t.Run("when the inStream has a nil value, we should force a panic", func(t *testing.T) {
+		defer func() {
+			if perr := recover(); perr == nil {
+				t.Errorf("expected FanIn to panic but got %v", perr)
+			}
+		}()
+		_ = GenerateHashFromStream[int, string](context.Background(), nil)
+	})
+
+	t.Run("when we pass an item into the stream, we should receive that item back", func(t *testing.T) {
+		list := []struct {
+			Key int
+			Val string
+		}{
+			{0, "thing0"},
+		}
+		ctx := context.Background()
+		stream := GenerateFromSlice(ctx, list)
+		got := GenerateHashFromStream(ctx, stream)
+		res := map[int]string{0: "thing0"}
+		if !reflect.DeepEqual(res, got) {
+			t.Errorf("expected \n%+v\n  but got \n%+v\n", res, got)
+		}
 	})
 }
