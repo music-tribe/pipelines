@@ -193,13 +193,4 @@ func TestFanIn(t *testing.T) {
 		expectStreamLengthToBe(len(list), outStream, t)
 		expectClosedChannel(true, outStream, t)
 	})
-
-	// t.Run("when we provide a stream containing a single stream, we should return that single closed stream", func(t *testing.T) {
-	// 	ctx := context.Background()
-	// 	list := []string{"hi", "there"}
-	// 	chanStream := FanOut(ctx, GenerateFromSlice(ctx, list), 1, pipeFunc)
-	// 	outStream := FanIn(ctx, chanStream)
-	// 	expectStreamLengthToBe(len(list), outStream, t)
-	// 	expectClosedChannel(true, outStream, t)
-	// })
 }
