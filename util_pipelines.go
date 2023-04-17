@@ -2,6 +2,7 @@ package pipelines
 
 import (
 	"context"
+	"sync"
 )
 
 func OrDone[R any](ctx context.Context, inStream <-chan R) <-chan R {
@@ -65,4 +66,37 @@ func TeeSplitter[R any](ctx context.Context, inStream <-chan R) (_, _ <-chan R) 
 	}()
 
 	return outStream1, outStream2
+}
+
+// Combine takes a context and any amount of channels of a type and combines them into one single channel of that same type.
+func Combine[T any](ctx context.Context, channels ...<-chan T) <-chan T {
+	outStream := make(chan T)
+	wg := sync.WaitGroup{}
+
+	worker := func(inStream <-chan T) {
+		defer wg.Done()
+		if inStream == nil {
+			return
+		}
+
+		for val := range OrDone(ctx, inStream) {
+			select {
+			case <-ctx.Done():
+				return
+			case outStream <- val:
+			}
+		}
+	}
+
+	wg.Add(len(channels))
+	for _, c := range channels {
+		go worker(c)
+	}
+
+	go func() {
+		wg.Wait()
+		defer close(outStream)
+	}()
+
+	return outStream
 }

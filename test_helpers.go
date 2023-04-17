@@ -46,3 +46,12 @@ func lenStream[T any](inStream <-chan T) (count int) {
 	}
 	return
 }
+
+func getIndexOf[T comparable](want T, list []T) int {
+	for idx, val := range list {
+		if want == val {
+			return idx
+		}
+	}
+	return -1
+}

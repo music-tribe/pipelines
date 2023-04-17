@@ -151,3 +151,115 @@ func countAllStreamLengths[T any](streams ...(<-chan T)) []int {
 	wg.Wait()
 	return counters
 }
+
+func TestCombine(t *testing.T) {
+
+	t.Run("when a single stream with a nil value has been passed, we should return an empty closed channel", func(t *testing.T) {
+		ctx := context.Background()
+		outStream := Combine[string](ctx, nil)
+		expectStreamLengthToBe(0, outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when no streams are passed, we should return an empty closed channel", func(t *testing.T) {
+		ctx := context.Background()
+		outStream := Combine[string](ctx)
+		expectStreamLengthToBe(0, outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when a single empty stream has been passed, we should return an empty closed channel", func(t *testing.T) {
+		ctx := context.Background()
+		outStream := Combine(ctx, GenerateFromSlice(ctx, []string{}))
+		expectStreamLengthToBe(0, outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when the context is cancelled before the pipeline, we should return a closed channel", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		a := []string{"hello"}
+		b := []string{"bonjour"}
+		streamA := GenerateFromSlice(ctx, a)
+		streamB := GenerateFromSlice(ctx, b)
+		cancel()
+		outStream := Combine(ctx, streamA, streamB)
+		expectStreamLengthToBeLessThan(1, outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when a one of the streams has a nil value, it is ignored and only values from the other streams are returned", func(t *testing.T) {
+		list := []string{"hello"}
+		ctx := context.Background()
+		stream1 := GenerateFromSlice(ctx, list)
+		var stream2 chan string
+		outStream := Combine(ctx, stream1, stream2)
+		expectStreamLengthToBe(len(list), outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when we provide many streams with a single value, the resluting channel length should be the sum of all these streams content", func(t *testing.T) {
+		a := []string{"hello"}
+		b := []string{"bonjour"}
+		c := []string{"guten tag"}
+		len := len(a) + len(b) + len(c)
+		ctx := context.Background()
+		streamA := GenerateFromSlice(ctx, a)
+		streamB := GenerateFromSlice(ctx, b)
+		streamC := GenerateFromSlice(ctx, c)
+		outStream := Combine(ctx, streamA, streamB, streamC)
+		expectStreamLengthToBe(len, outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when we provide many streams with multiple values, the resluting channel length should be the sum of all these streams content", func(t *testing.T) {
+		a := []string{"apple", "pear", "grape"}
+		b := []string{"chicken"}
+		c := []string{"brocolli", "cheese", "turnip"}
+		d := []string{}
+		len := len(a) + len(b) + len(c)
+		ctx := context.Background()
+		streamA := GenerateFromSlice(ctx, a)
+		streamB := GenerateFromSlice(ctx, b)
+		streamC := GenerateFromSlice(ctx, c)
+		streamD := GenerateFromSlice(ctx, d)
+		outStream := Combine(ctx, streamA, streamB, streamC, streamD)
+		expectStreamLengthToBe(len, outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when we provide many streams with multiple values, the resluting channel should contain all these values", func(t *testing.T) {
+		a := []string{"apple", "pear", "grape"}
+		b := []string{"chicken", "peanuts"}
+		ctx := context.Background()
+		outStream := Combine(ctx, GenerateFromSlice(ctx, a), GenerateFromSlice(ctx, b))
+		outList := make([]string, len(a)+len(b))
+		var idx int
+		for val := range outStream {
+			outList[idx] = val
+			idx++
+		}
+
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for _, v := range a {
+				if idx := getIndexOf(v, outList); idx < 0 {
+					t.Errorf("could not find %s in outList", v)
+				}
+			}
+		}()
+
+		go func() {
+			defer wg.Done()
+			for _, v := range a {
+				if idx := getIndexOf(v, outList); idx < 0 {
+					t.Errorf("could not find %s in outList", v)
+				}
+			}
+		}()
+
+		wg.Wait()
+		expectClosedChannel(true, outStream, t)
+	})
+}
