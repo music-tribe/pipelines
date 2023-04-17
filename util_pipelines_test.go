@@ -34,11 +34,19 @@ func TestOrDone(t *testing.T) {
 		expectClosedChannel(true, outStream, t)
 	})
 
-	t.Run("when we pass multiple values into the stream, we should receive those same values back", func(t *testing.T) {
+	t.Run("when we pass multiple values into the stream, we should receive the same number of values back", func(t *testing.T) {
 		list := []string{"something", "nother", "another"}
 		ctx := context.Background()
 		outStream := OrDone(ctx, GenerateFromSlice(ctx, list))
 		expectStreamLengthToBe(len(list), outStream, t)
+		expectClosedChannel(true, outStream, t)
+	})
+
+	t.Run("when we pass multiple values into the stream, we should receive those same values back", func(t *testing.T) {
+		list := []string{"something", "nother", "another"}
+		ctx := context.Background()
+		outStream := OrDone(ctx, GenerateFromSlice(ctx, list))
+		expectOrderedResultsList(list, outStream, t)
 		expectClosedChannel(true, outStream, t)
 	})
 }
@@ -63,6 +71,7 @@ func TestTeeSplitter(t *testing.T) {
 		for _, cnt := range cnts {
 			if cnt > 2 {
 				t.Errorf("expected less than one item but got %d", cnt)
+
 			}
 		}
 	})
