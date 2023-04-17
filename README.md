@@ -3,7 +3,8 @@ This package contains a small collection of generic, concurrent, reusable pipeli
 
 ## In use
 
-### Generate channels from slices
+### GenerateFromSlice
+Generate a new reader channel from a slice of any type
 ```golang
 import (
     "github.com/music-tribe/pipelines"
@@ -18,7 +19,9 @@ func main() {
     ...
 }
 ```
-### Fan out work concurrently
+### FanOut, WorkerFunc and FanIn
+FanOut allows us to spread our work accross several workers. The WorkerFunc specifies the job that the worker must undertake. We then fan back in to a a single stream with FanIn.
+This will be most useful with processor intensive or long running tasks.
 ```golang
 
 func main() {
@@ -45,7 +48,8 @@ func main() {
 }
 
 ```
-### Creating 2 identical copies of a channel
+### TeeSplitter
+TeeSplitter allows us to create 2 identical copies of one channel. This is useful when you require the same channel to perform two different tasks.
 ```golang
 func main() {
    words := []string{"hello", "salut", "bonjour"}
@@ -74,7 +78,8 @@ func main() {
 	wg.Wait()
 }
 ```
-### Combine multiple channels into one
+### Combine
+Combine allows us to combine any number of channels of the same type into one single channel of that type.
 ```golang
 func main() {
     trees := []string{"ash", "oak", "beech"}
