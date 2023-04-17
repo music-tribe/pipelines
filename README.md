@@ -11,12 +11,13 @@ import (
 )
 
 func main() {
-    numList := []int{1, 4, 67, 843, 23}
+	numList := []int{1, 4, 67, 843, 23}
 
-    // in this situation, the content type within the slice is inferred
-    genStream := pipelines.GenerateFromSlice(context.Background(), numList)
+	// in this situation, the content type within the slice is inferred
+	genStream := pipelines.GenerateFromSlice(context.Background(), numList)
 
-    ...
+	...
+	// do some funky concurrency stuff
 }
 ```
 ### FanOut, WorkerFunc and FanIn
@@ -25,8 +26,8 @@ This will be most useful with processor intensive or long running tasks.
 ```golang
 
 func main() {
-    // It's always worth benchmarking your functionality when using pipelines - concurrency is often not the best course of action.
-    numList := []int{1, 4, 67, 843, 23, 57, 21, 68}
+	// It's always worth benchmarking your functionality when using pipelines - concurrency is often not the best course of action.
+	numList := []int{1, 4, 67, 843, 23, 57, 21, 68}
 	maxProcs := 4
 	var convToString WorkerFunc[int, string] = func(ctx context.Context, item int) string { return strconv.Itoa(item) }
 
@@ -39,10 +40,10 @@ func main() {
 		fmt.Println(val)
 	}
 
-    // This could also be written as...
-    stream := pipelines.FanIn(ctx, pipelines.FanOut(ctx, pipelines.GenerateFromSlice(ctx, numList), 4, convToString))
+	    // This could also be written as...
+	    stream := pipelines.FanIn(ctx, pipelines.FanOut(ctx, pipelines.GenerateFromSlice(ctx, numList), 4, convToString))
 
-    for val := range strStream {
+	for val := range strStream {
 		fmt.Println(val)
 	}
 }
@@ -52,7 +53,7 @@ func main() {
 TeeSplitter allows us to create 2 identical copies of one channel. This is useful when you require the same channel to perform two different tasks.
 ```golang
 func main() {
-   words := []string{"hello", "salut", "bonjour"}
+	words := []string{"hello", "salut", "bonjour"}
 
 	ctx := context.Background()
 	splitMeStream := pipelines.GenerateFromSlice(ctx, words)
@@ -82,7 +83,7 @@ func main() {
 Combine allows us to combine any number of channels of the same type into one single channel of that type.
 ```golang
 func main() {
-    trees := []string{"ash", "oak", "beech"}
+	trees := []string{"ash", "oak", "beech"}
 	bushes := []string{"laurel", "rhododendron"}
 	greenery := make([]string, len(trees)+len(bushes))
 
@@ -97,6 +98,6 @@ func main() {
 		greenery[idx] = val
 		idx++
 	}
-    // this is clearly not the most efficient way to proceed in this situation! :-)
+	// this is clearly not the most efficient way to proceed in this situation! :-)
 }
 ```
