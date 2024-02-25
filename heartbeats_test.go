@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDoWorkWithHeartbeats(t *testing.T) {
+func Test_doWorkWithHeartbeats(t *testing.T) {
 	t.Run("when the longRunningFunc has a nil value, we should panic", func(t *testing.T) {
 		assert.Panics(t, func() {
-			DoWorkWithHeartbeats[any](context.TODO(), time.Second, nil)
+			doWorkWithHeartbeats[any](context.TODO(), time.Second, nil)
 		})
 	})
 
@@ -25,7 +25,7 @@ func TestDoWorkWithHeartbeats(t *testing.T) {
 			cancel()
 		}()
 
-		heartbeat, results := DoWorkWithHeartbeats(ctx, pulseInterval, func(ctx context.Context) error { time.Sleep(pulseInterval * 2); return nil })
+		heartbeat, results := doWorkWithHeartbeats(ctx, pulseInterval, func(ctx context.Context) error { time.Sleep(pulseInterval * 2); return nil })
 
 		done := make(chan interface{})
 		pulseCount := 0
@@ -47,7 +47,7 @@ func TestDoWorkWithHeartbeats(t *testing.T) {
 		pulseInterval := time.Second
 		ctx := context.TODO()
 
-		heartbeat, results := DoWorkWithHeartbeats(
+		heartbeat, results := doWorkWithHeartbeats(
 			ctx,
 			pulseInterval,
 			func(ctx context.Context) int { time.Sleep(pulseInterval * 2); return 3 },
@@ -70,5 +70,18 @@ func TestDoWorkWithHeartbeats(t *testing.T) {
 		<-done
 		assert.Equal(t, 3, res)
 		assert.Equal(t, 2, pulseCount)
+	})
+}
+
+func TestHeartbeatListener(t *testing.T) {
+	t.Run("when the function times out, we should receive an error", func(t *testing.T) {
+		timeout := time.Second
+		pulseInterval := timeout / 2
+		res, err := DoWorkWithHeartbeats(context.TODO(), pulseInterval, timeout, func(ctx context.Context) int {
+			time.Sleep(time.Second * 2)
+			return 3
+		})
+		assert.ErrorContains(t, err, "channel may be closed already")
+		assert.Equal(t, 0, res)
 	})
 }

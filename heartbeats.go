@@ -2,13 +2,14 @@ package pipelines
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
 
-func DoWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duration, longRunningFunc func(context.Context) R) (<-chan interface{}, <-chan R) {
+func doWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duration, longRunningFunc func(context.Context) R) (<-chan interface{}, <-chan R) {
 	if longRunningFunc == nil {
-		panic("DoWorkWithHeartbeats: longRunningFunc arg has nil value")
+		panic("doWorkWithHeartbeats: longRunningFunc arg has nil value")
 	}
 
 	heartbeat := make(chan interface{})
@@ -74,4 +75,27 @@ func DoWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duratio
 	}()
 
 	return heartbeat, results
+}
+
+func DoWorkWithHeartbeats[R any](ctx context.Context, pulseInterval, timeout time.Duration, workFunc func(context.Context) R) (R, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	time.AfterFunc(timeout, func() { cancel() })
+
+	heartbeat, results := doWorkWithHeartbeats(ctx, pulseInterval, workFunc)
+	var r R
+	for {
+		select {
+		case _, ok := <-heartbeat:
+			if !ok {
+				return r, errors.New("DoWorkWithHeartbeats: heartbeat channel may be closed already")
+			}
+		case res, ok := <-results:
+			if !ok {
+				return r, errors.New("DoWorkWithHeartbeats: results channel may be closed already")
+			}
+			return res, nil
+		case <-time.After(pulseInterval * 2):
+			return r, errors.New("DoWorkWithHeartbeats: workFunc timed out")
+		}
+	}
 }
