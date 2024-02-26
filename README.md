@@ -101,3 +101,56 @@ func main() {
 	// this is clearly not the most efficient way to proceed in this situation! :-)
 }
 ```
+
+### Heartbeats
+DoWorkWithHeartbeats allows us to give a long running task a pulse - we can constantly monitor it's health and
+watch for silent failures.
+Simple example
+```golang
+var (
+	timeout = time.Second*10
+	pulseInterval = time.Second
+)
+
+type Response struct {
+	Data []byte
+	Err  error
+}
+
+func taskThatNeedsAHeartbeat(ctx context.Context) Response {
+	select {
+	case <-ctx.Done():
+		return Response{Err: ctx.Err()}
+	default:
+	}
+
+	data, err := myLongRunningTask(ctx)
+	return Response{
+		Data: data,
+		Err:  err,
+	}
+}
+
+res, err := DoWorkWithHeartbeats(
+	context.Background(), 
+	taskThatNeedsAHeartbeat, 
+	func(ho *HeartbeatOptions) {
+		ho.PulseInterval = pulseInterval
+		ho.Timeout = timeout
+	},
+)
+if err != nil {
+	// this is any error that occured due to the DoWorkWithHeartbeats decorator
+	log.Fatal(err)
+}
+
+if res.Err != nil {
+	// this is the task error - we've used it in this case but it may not always be present due to the generic response
+	log.Fatal(res.Err)
+}
+
+doSomethingWithData(res.Data)
+
+...
+
+```
