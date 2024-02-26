@@ -3,13 +3,15 @@ package pipelines
 import (
 	"context"
 	"errors"
-	"fmt"
+	"os"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
-func doWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duration, longRunningFunc func(context.Context) R) (<-chan interface{}, <-chan R) {
-	if longRunningFunc == nil {
-		panic("doWorkWithHeartbeats: longRunningFunc arg has nil value")
+func doWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duration, task func(context.Context) R, logger HeartbeatsLogger) (<-chan interface{}, <-chan R) {
+	if task == nil {
+		panic("doWorkWithHeartbeats: task arg has nil value")
 	}
 
 	heartbeat := make(chan interface{})
@@ -29,7 +31,7 @@ func doWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duratio
 				select {
 				case <-ctx.Done():
 					return
-				case r <- longRunningFunc(ctx):
+				case r <- task(ctx):
 				}
 			}()
 
@@ -39,9 +41,8 @@ func doWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duratio
 		sendPulse := func() {
 			select {
 			case heartbeat <- struct{}{}:
-				fmt.Println("pulse")
+				logger.Debugf("doWorkWithHeartbeats: pulse\n")
 			default:
-				fmt.Println("channel is blocked")
 			}
 		}
 
@@ -68,7 +69,7 @@ func doWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duratio
 				if !ok {
 					return
 				}
-				fmt.Println("longRunningFunc complete")
+				logger.Infof("doWorkWithHeartbeats: task completed")
 				sendResult(res)
 			}
 		}
@@ -77,11 +78,39 @@ func doWorkWithHeartbeats[R any](ctx context.Context, pulseInterval time.Duratio
 	return heartbeat, results
 }
 
-func DoWorkWithHeartbeats[R any](ctx context.Context, pulseInterval, timeout time.Duration, workFunc func(context.Context) R) (R, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	time.AfterFunc(timeout, func() { cancel() })
+type HeartbeatsLogger interface {
+	Debugf(fmt string, fields ...interface{})
+	Infof(fmt string, fields ...interface{})
+	Errorf(fmt string, fields ...interface{})
+}
 
-	heartbeat, results := doWorkWithHeartbeats(ctx, pulseInterval, workFunc)
+type HeartbeatsOptions struct {
+	PulseInterval time.Duration
+	Timeout       time.Duration
+
+	Logger HeartbeatsLogger
+	Debug  bool
+}
+
+type HeartbeatsOption func(*HeartbeatsOptions)
+
+func DoWorkWithHeartbeats[R any](ctx context.Context, task func(ctx context.Context) R, options ...HeartbeatsOption) (R, error) {
+	l := logrus.New()
+	l.SetOutput(os.Stdout)
+	ops := HeartbeatsOptions{
+		PulseInterval: time.Second,
+		Timeout:       time.Second * 30,
+		Logger:        l,
+	}
+
+	for _, optFunc := range options {
+		optFunc(&ops)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	time.AfterFunc(ops.Timeout, func() { cancel() })
+
+	heartbeat, results := doWorkWithHeartbeats(ctx, ops.PulseInterval, task, ops.Logger)
 	var r R
 	for {
 		select {
@@ -94,8 +123,8 @@ func DoWorkWithHeartbeats[R any](ctx context.Context, pulseInterval, timeout tim
 				return r, errors.New("DoWorkWithHeartbeats: results channel may be closed already")
 			}
 			return res, nil
-		case <-time.After(pulseInterval * 2):
-			return r, errors.New("DoWorkWithHeartbeats: workFunc timed out")
+		case <-time.After(ops.PulseInterval * 2):
+			return r, errors.New("DoWorkWithHeartbeats: task timed out")
 		}
 	}
 }

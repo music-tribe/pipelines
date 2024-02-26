@@ -5,13 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_doWorkWithHeartbeats(t *testing.T) {
+	logger := logrus.New()
 	t.Run("when the longRunningFunc has a nil value, we should panic", func(t *testing.T) {
 		assert.Panics(t, func() {
-			doWorkWithHeartbeats[any](context.TODO(), time.Second, nil)
+			doWorkWithHeartbeats[any](context.TODO(), time.Second, nil, logger)
 		})
 	})
 
@@ -25,7 +27,11 @@ func Test_doWorkWithHeartbeats(t *testing.T) {
 			cancel()
 		}()
 
-		heartbeat, results := doWorkWithHeartbeats(ctx, pulseInterval, func(ctx context.Context) error { time.Sleep(pulseInterval * 2); return nil })
+		heartbeat, results := doWorkWithHeartbeats(
+			ctx, pulseInterval,
+			func(ctx context.Context) error { time.Sleep(pulseInterval * 2); return nil },
+			logger,
+		)
 
 		done := make(chan interface{})
 		pulseCount := 0
@@ -51,6 +57,7 @@ func Test_doWorkWithHeartbeats(t *testing.T) {
 			ctx,
 			pulseInterval,
 			func(ctx context.Context) int { time.Sleep(pulseInterval * 2); return 3 },
+			logger,
 		)
 
 		done := make(chan interface{})
@@ -77,10 +84,11 @@ func TestHeartbeatListener(t *testing.T) {
 	t.Run("when the function times out, we should receive an error", func(t *testing.T) {
 		timeout := time.Second
 		pulseInterval := timeout / 2
-		res, err := DoWorkWithHeartbeats(context.TODO(), pulseInterval, timeout, func(ctx context.Context) int {
+		res, err := DoWorkWithHeartbeats(context.TODO(), func(ctx context.Context) int {
 			time.Sleep(time.Second * 2)
 			return 3
-		})
+		}, func(ho *HeartbeatsOptions) { ho.Timeout = timeout; ho.PulseInterval = pulseInterval })
+
 		assert.ErrorContains(t, err, "channel may be closed already")
 		assert.Equal(t, 0, res)
 	})
