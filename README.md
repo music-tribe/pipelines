@@ -154,3 +154,45 @@ doSomethingWithData(res.Data)
 ...
 
 ```
+
+### Http Request Async
+HttpReqAsync allows us to make a http request asynchronously e.g.
+```golang
+func taskThatRequiresHttpRequest(ctx context.Context) error {
+	req, err := http.NewRequest(http.MethodGet, "https://my-api/objects/v1/1/?expand=metadata", nil)
+	if err != nil {
+		return err
+	}
+	h := http.Header{}
+	h.Set("Authorization", "Bearer eyJhbGc")
+	h.Set("Content-Type", "application/json")
+	req.Header = h
+
+	client := http.DefaultClient
+
+	chRes := HttpReqAsync(ctx, client, req, func(res *http.Response, err error) (sampleObject, error) {
+		if err != nil {
+			return sampleObject{}, err
+		}
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			return sampleObject{}, err
+		}
+
+		if res.StatusCode != http.StatusOK {
+			return sampleObject{}, fmt.Errorf("failed to retrieve object. Response: %s, Body: %s", res.Status, body)
+		}
+
+		o := sampleObject{}
+		err = json.Unmarshal(body, &o)
+		if err != nil {
+			return sampleObject{}, fmt.Errorf("failed to unmarshal object: %v. Response: %s, Body: %s", err, res.Status, body)
+		}
+		return o, nil
+	})
+	// Do other work before getting the result
+	res := <-chRes
+}
+```
