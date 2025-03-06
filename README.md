@@ -134,7 +134,7 @@ func taskThatNeedsAHeartbeat(ctx context.Context) Response {
 res, err := DoWorkWithHeartbeats(
 	context.Background(),
 	taskThatNeedsAHeartbeat,
-	func(ho *HeartbeatOptions) {
+	func(ho *HeartbeatsOption) {
 		ho.PulseInterval = pulseInterval
 		ho.Timeout = timeout
 	},
